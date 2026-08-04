@@ -1,0 +1,8 @@
+pyrealsense2
+ultralytics
+opencv-python
+numpy
+pyyaml
+torch
+insightface
+onnxruntime-gpu
