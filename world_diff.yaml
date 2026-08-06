@@ -1,9 +1,0 @@
-timestamp: '2026-08-05 01:49:27'
-added: []
-changed:
-- id: chair_45
-  class: chair
-  position: [-0.03, 0.02, 0.88]
-  risk_score: 0.449
-  visible: true
-removed: []

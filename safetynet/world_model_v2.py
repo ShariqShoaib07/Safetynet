@@ -985,164 +985,131 @@ def render_radar_view(people, intrinsics=None):
     return img
 
 
-# RISK_GLOW_SIGMA_M now lives in the SAFETY ZONE / BOUNDARY CONFIG block
-# at the top of this file, alongside DANGER_ZONE_M / CAUTION_ZONE_M -- it
-# drives both this heat map's glow AND the risk_score field in world.yaml,
-# so the two can never disagree with each other.
+# ---- Risk Matrix (Likelihood x Impact) -- replaces the old separate --
+# ---- Risk Heat Map + Probability Map windows with ONE consolidated --
+# ---- view. This is an ABSTRACT risk-category matrix, not a spatial --
+# ---- map like the Radar window -- axes are Likelihood/Impact, not --
+# ---- physical position. -----------------------------------------------
+
+RISK_MATRIX_SIZE_PX = 560
+RISK_MATRIX_LABELS = ["Very Low", "Low", "Medium", "High", "Very High"]
+
+# 5x5 color palette [impact_idx][likelihood_idx], BGR, green (safe) ->
+# red (severe) -- matches the standard ISO-style risk matrix coloring.
+# impact_idx 0 = bottom row (Very Low impact), 4 = top row (Very High).
+RISK_MATRIX_COLORS = [
+    [(60, 160, 60),  (60, 160, 60),  (0, 210, 0),    (0, 220, 130),  (0, 230, 230)],
+    [(60, 160, 60),  (0, 210, 0),    (0, 220, 130),  (0, 230, 230),  (0, 165, 255)],
+    [(0, 210, 0),    (0, 220, 130),  (0, 230, 230),  (0, 165, 255),  (0, 100, 255)],
+    [(0, 220, 130),  (0, 230, 230),  (0, 165, 255),  (0, 100, 255),  (0, 0, 230)],
+    [(0, 230, 230),  (0, 165, 255),  (0, 100, 255),  (0, 0, 230),    (0, 0, 180)],
+]
 
 
-def _build_risk_field(registry, grid_n=130):
-    """Shared Gaussian risk field, used by BOTH render_risk_heatmap and
-    render_probability_map below -- so the glow you see and the percent
-    numbers you see are guaranteed to be reading off the exact same
-    values, never two independently-computed versions that could drift
-    apart. Only currently-dynamic (obj.static is False), visible objects
-    contribute -- see render_risk_heatmap's docstring for why. Combined
-    with np.maximum across objects, not addition, for the same reason.
+def compute_likelihood_impact(obj):
+    """Maps a tracked object onto the 5-level Likelihood x Impact risk
+    matrix. IMPACT = how bad it is if contact happens -- driven by WHAT
+    the object is: a person is always Very High impact (human injury
+    risk), regardless of authorization -- physical severity doesn't
+    care about a badge. Non-person objects are Low/Medium/High by size.
+    LIKELIHOOD = how probable a problematic interaction is RIGHT NOW --
+    reuses the existing risk_score (already proximity- AND
+    authorization-aware, see compute_risk_value), binned into 5 levels.
+    This is deliberately where authorization matters: trusted/
+    predictable behavior around the robot lowers LIKELIHOOD, it does
+    not lower IMPACT -- a person is a person if contact happens.
 
-    Returns the (grid_n, grid_n) field array (0-1) plus the grid's
-    meter-space coordinate arrays (x_m, z_m), same coordinate frame as
-    render_radar_view (x lateral, z depth, robot at the origin)."""
-    size = RADAR_SIZE_PX
-    scale_g = (grid_n / 2) / RADAR_RANGE_M       # grid-cells per meter
-    center_gx, center_gy = grid_n // 2, grid_n - int(40 * grid_n / size)
-    gx_idx, gy_idx = np.meshgrid(np.arange(grid_n), np.arange(grid_n))
-    x_m = (gx_idx - center_gx) / scale_g          # lateral (left/right)
-    z_m = (center_gy - gy_idx) / scale_g          # depth (forward from robot)
-
-    field = np.zeros((grid_n, grid_n), dtype=np.float32)
-    for obj in registry.objects.values():
-        if not obj.visible or obj.static:
-            continue  # only currently-dynamic things contribute
-        ox, oz = float(obj.position[0]), float(obj.position[2])
-        sigma = RISK_GLOW_SIGMA_AUTHORIZED_M if obj.authorized else RISK_GLOW_SIGMA_M
-        dist2 = (x_m - ox) ** 2 + (z_m - oz) ** 2
-        contribution = np.exp(-dist2 / (2 * sigma ** 2)).astype(np.float32)
-        field = np.maximum(field, contribution)
-    return field, x_m, z_m
-
-
-def render_risk_heatmap(registry, intrinsics=None):
-    """A DIFFERENT window from render_radar_view above. That one draws
-    exact zone rings + a dot per person -- clean, discrete, good for
-    reading an exact distance. This one is a genuine risk HEAT MAP: a
-    smooth glow, built ONLY from objects that are currently DYNAMIC
-    (obj.static is False) -- anything static-locked is, by construction
-    (see WorldObject._check_static()/update()), sitting safely in the
-    'safe' zone and frozen, so it isn't a live risk and doesn't compete
-    visually with what's actually capable of hurting someone right now.
-    Includes every class equally (person, chair, box, ...) -- not just
-    people -- since zone/risk now applies to all of them the same way.
-
-    See render_probability_map() below for the same field, but with
-    actual numeric percentages, a legend, and contour lines -- this one
-    is deliberately just the raw glow for a fast, at-a-glance read.
-
-    Same coordinate frame, RADAR_RANGE_M/RADAR_SIZE_PX scale, and robot
-    placement as render_radar_view, so the two windows line up visually
-    if you put them side by side.
+    Returns (likelihood_idx, impact_idx), each 0-4.
     """
-    size = RADAR_SIZE_PX
-    center_x, center_y = size // 2, size - 40
-    scale = (size / 2) / RADAR_RANGE_M  # pixels per meter
+    if obj.cls_name == "person":
+        impact_idx = 4  # Very High -- always, regardless of authorization
+    else:
+        volume = float(obj.dims[0] * obj.dims[1] * obj.dims[2])
+        if volume < 0.01:
+            impact_idx = 1  # Low
+        elif volume < 0.2:
+            impact_idx = 2  # Medium
+        else:
+            impact_idx = 3  # High
 
-    field, _, _ = _build_risk_field(registry)
+    likelihood_idx = min(int(obj.risk_score * 5), 4)
+    return likelihood_idx, impact_idx
 
-    norm = np.clip(field * 255, 0, 255).astype(np.uint8)
-    norm = cv2.resize(norm, (size, size), interpolation=cv2.INTER_CUBIC)
-    img = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
 
-    # Reference rings + robot marker, drawn in white so they read clearly
-    # against the JET colormap regardless of what's underneath them.
-    for r_m in range(1, int(RADAR_RANGE_M) + 1):
-        cv2.circle(img, (center_x, center_y), int(r_m * scale), (255, 255, 255), 1)
-    cv2.circle(img, (center_x, center_y), int(CAUTION_ZONE_M * scale), (255, 255, 255), 1)
-    cv2.circle(img, (center_x, center_y), int(DANGER_ZONE_M * scale), (255, 255, 255), 2)
-    cv2.circle(img, (center_x, center_y), int(CAUTION_ZONE_AUTHORIZED_M * scale), (255, 255, 255), 1)
-    cv2.circle(img, (center_x, center_y), int(DANGER_ZONE_AUTHORIZED_M * scale), (255, 255, 255), 1)
-    tri = np.array([[center_x, center_y - 14], [center_x - 10, center_y + 10],
-                     [center_x + 10, center_y + 10]], dtype=np.int32)
-    cv2.fillPoly(img, [tri], (255, 255, 255))
-    cv2.putText(img, "Risk Heat Map (dynamic only, top-down)", (10, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+def render_risk_matrix(registry):
+    """The single consolidated risk view. 5x5 Likelihood x Impact grid,
+    colored per the standard risk-matrix palette, with every currently-
+    visible tracked object plotted as a labeled dot in its cell --
+    authorized people show their name, unauthorized people show
+    'id [UNAUTHORIZED]', objects show their class name.
+    """
+    size = RISK_MATRIX_SIZE_PX
+    margin_left, margin_bottom, margin_top, margin_right = 90, 60, 50, 20
+    grid_w = size - margin_left - margin_right
+    grid_h = size - margin_top - margin_bottom
+    cell_w, cell_h = grid_w // 5, grid_h // 5
+
+    img = np.full((size, size, 3), 255, dtype=np.uint8)
+
+    for impact_idx in range(5):
+        for likelihood_idx in range(5):
+            x0 = margin_left + likelihood_idx * cell_w
+            x1 = x0 + cell_w
+            y1 = size - margin_bottom - impact_idx * cell_h
+            y0 = y1 - cell_h
+            color = RISK_MATRIX_COLORS[impact_idx][likelihood_idx]
+            cv2.rectangle(img, (x0, y0), (x1, y1), color, -1)
+            cv2.rectangle(img, (x0, y0), (x1, y1), (255, 255, 255), 1)
+
+    for i, label in enumerate(RISK_MATRIX_LABELS):
+        cx = margin_left + i * cell_w + cell_w // 2
+        cv2.putText(img, label, (cx - 25, size - margin_bottom + 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+        cy = size - margin_bottom - i * cell_h - cell_h // 2
+        cv2.putText(img, label, (8, cy + 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+
+    cv2.putText(img, "Likelihood", (margin_left + grid_w // 2 - 40, size - 15),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
+    cv2.putText(img, "Impact", (15, margin_top - 15),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
+    cv2.putText(img, "RISK MATRIX", (margin_left + grid_w // 2 - 75, 25),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+
+    cell_occupants = {}
+    for obj in registry.objects.values():
+        if not obj.visible:
+            continue
+        likelihood_idx, impact_idx = compute_likelihood_impact(obj)
+        key = (likelihood_idx, impact_idx)
+        n = cell_occupants.get(key, 0)
+        cell_occupants[key] = n + 1
+
+        x0 = margin_left + likelihood_idx * cell_w
+        y1 = size - margin_bottom - impact_idx * cell_h
+        # Dot gets a small jitter so multiple dots in one cell are still
+        # distinguishable; the LABEL stacks in its own vertical list
+        # instead of jittering with the dot -- jitter alone isn't enough
+        # spread to stop longer labels (e.g. "person_7 [UNAUTHORIZED]")
+        # from overlapping when several objects share a cell.
+        dot_jitter_x = (n % 3) * 14 - 14
+        dot_jitter_y = (n % 3) * 10
+        px = x0 + cell_w // 2 + dot_jitter_x
+        py = y1 - cell_h // 2 + dot_jitter_y
+        label_y = (y1 - cell_h + 14) + n * 15  # stack top-down within the cell
+
+        if obj.cls_name == "person":
+            label = obj.worker_name if obj.authorized else f"{obj.id} [UNAUTHORIZED]"
+        else:
+            label = obj.cls_name
+        dot_color = (0, 130, 0) if (obj.cls_name == "person" and obj.authorized) else (0, 0, 0)
+
+        cv2.circle(img, (px, py), 6, dot_color, -1)
+        cv2.circle(img, (px, py), 6, (255, 255, 255), 1)
+        cv2.putText(img, label, (x0 + 4, label_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 0, 0), 1)
+
     return img
-
-
-# Iso-probability contour lines drawn on the probability map, and their
-# labels (as a percentage). PLACEHOLDER set -- add/remove levels freely.
-PROBABILITY_CONTOUR_LEVELS = [0.10, 0.25, 0.50, 0.75, 0.90]
-
-
-def render_probability_map(registry, intrinsics=None):
-    """A THIRD top-down window, alongside render_radar_view (exact zone
-    rings + a dot per person) and render_risk_heatmap (the raw glow).
-    This one takes the EXACT SAME Gaussian field as the heat map (see
-    _build_risk_field -- shared, not recomputed, so the two can never
-    disagree) and makes the actual probability VALUES readable instead
-    of just a color gradient:
-      - a colorbar legend on the right mapping color -> percent
-      - labeled iso-probability contour lines (PROBABILITY_CONTOUR_LEVELS)
-      - a live risk-percentage readout next to every dynamic object
-    """
-    size = RADAR_SIZE_PX
-    center_x, center_y = size // 2, size - 40
-    scale = (size / 2) / RADAR_RANGE_M
-
-    field, _, _ = _build_risk_field(registry)
-
-    norm_small = np.clip(field * 255, 0, 255).astype(np.uint8)
-    norm = cv2.resize(norm_small, (size, size), interpolation=cv2.INTER_CUBIC)
-    img = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
-
-    # Contours computed on the upscaled (full-size) field so the lines
-    # come out smooth instead of blocky from the coarse evaluation grid.
-    field_full = cv2.resize(field, (size, size), interpolation=cv2.INTER_CUBIC)
-    for level in PROBABILITY_CONTOUR_LEVELS:
-        mask = (field_full >= level).astype(np.uint8) * 255
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours:
-            continue
-        cv2.drawContours(img, contours, -1, (255, 255, 255), 1)
-        biggest = max(contours, key=cv2.contourArea)
-        top_point = tuple(biggest[biggest[:, :, 1].argmin()][0])
-        label_y = max(int(top_point[1]) - 6, 12)
-        cv2.putText(img, f"{int(level * 100)}%", (int(top_point[0]) - 10, label_y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-
-    tri = np.array([[center_x, center_y - 14], [center_x - 10, center_y + 10],
-                     [center_x + 10, center_y + 10]], dtype=np.int32)
-    cv2.fillPoly(img, [tri], (255, 255, 255))
-
-    # Live percentage label at every object contributing to the field --
-    # reuses obj.risk_score directly (same formula, already
-    # authorization-aware) rather than resampling the grid at a point.
-    for obj in registry.objects.values():
-        if not obj.visible or obj.static:
-            continue
-        px = int(center_x + float(obj.position[0]) * scale)
-        py = int(center_y - float(obj.position[2]) * scale)
-        if 0 <= px < size and 0 <= py < size:
-            cv2.circle(img, (px, py), 4, (255, 255, 255), -1)
-            cv2.putText(img, f"{obj.id} {obj.risk_score * 100:.0f}%", (px + 8, py + 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-
-    # Colorbar legend (color -> probability %) pasted onto a wider canvas.
-    bar_w, margin = 40, 70
-    canvas = np.full((size, size + bar_w + margin, 3), 25, dtype=np.uint8)
-    canvas[:, :size] = img
-    grad = np.linspace(255, 0, size, dtype=np.uint8).reshape(-1, 1)
-    grad = np.repeat(grad, bar_w, axis=1)
-    grad_colored = cv2.applyColorMap(grad, cv2.COLORMAP_JET)
-    canvas[:, size + 10:size + 10 + bar_w] = grad_colored
-    for pct in (0, 25, 50, 75, 100):
-        y = int(size - (pct / 100) * (size - 1))
-        cv2.putText(canvas, f"{pct}%", (size + 10 + bar_w + 4, min(max(y, 10), size - 4)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (230, 230, 230), 1)
-
-    cv2.putText(canvas, "Probability Map (risk %, dynamic only)", (10, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-    return canvas
-
 
 # --------------------------------- Main -----------------------------------
 
@@ -1391,11 +1358,8 @@ def main():
             radar_img = render_radar_view(visible_people, intrinsics)
             cv2.imshow("Safety Zone Radar (top-down)", radar_img)
 
-            heatmap_img = render_risk_heatmap(registry, intrinsics)
-            cv2.imshow("Risk Heat Map (dynamic only, top-down)", heatmap_img)
-
-            prob_img = render_probability_map(registry, intrinsics)
-            cv2.imshow("Probability Map (risk %, top-down)", prob_img)
+            heatmap_img = render_risk_matrix(registry)
+            cv2.imshow("Risk Matrix (Likelihood x Impact)", heatmap_img)
 
             cv2.imshow("World Model - Authorization (press q to quit)", color_image)
             if cv2.waitKey(1) & 0xFF == ord('q'):

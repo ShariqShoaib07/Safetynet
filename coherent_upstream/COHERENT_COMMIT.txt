@@ -1,0 +1,2 @@
+(venv) PS D:\worldmodel _v2\COHERENT> git log -1 --format="%H %ai"
+17554a52792e302921bbb5e5fd3b4049e25b50d4 2025-06-11 16:19:00 +0800

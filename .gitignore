@@ -35,3 +35,4 @@ Thumbs.db
 *.zip
 
 weights/clip/
+safetynet/weights/clip/
