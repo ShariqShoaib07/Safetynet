@@ -36,3 +36,6 @@ Thumbs.db
 
 weights/clip/
 safetynet/weights/clip/
+
+safetynet/world.yaml
+safetynet/world_diff.yaml
