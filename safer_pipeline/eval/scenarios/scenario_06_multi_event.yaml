@@ -1,0 +1,35 @@
+# Scenario 6: TWO events in the same diff -- an authorized worker in
+# caution range, AND an unauthorized person in danger range, at once.
+# Ground truth rationale: the worst-case event present should dominate
+# the verdict, regardless of what else is happening simultaneously.
+# Expected verdict: STOP (driven by the unauthorized person in danger).
+timestamp: "2026-08-14 10:25:00"
+added:
+  - id: person_205
+    class: person
+    position: [0.25, 0.2, 0.2]
+    dimensions: [0.5, 0.4, 1.7]
+    velocity: [0.05, 0.0, 0.05]
+    static: false
+    visible: true
+    confidence: 0.9
+    last_seen: 1.0
+    zone: caution
+    risk_score: 0.5
+    authorized: true
+    name: "Shariq"
+  - id: person_206
+    class: person
+    position: [0.15, 0.1, 0.2]
+    dimensions: [0.53, 0.41, 1.73]
+    velocity: [0.4, 0.2, 0.3]
+    static: false
+    visible: true
+    confidence: 0.87
+    last_seen: 1.0
+    zone: danger
+    risk_score: 0.93
+    authorized: false
+    name: null
+changed: []
+removed: []

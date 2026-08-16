@@ -1,0 +1,22 @@
+# Scenario 3: an AUTHORIZED worker enters the CAUTION zone only
+# (0.15m - 0.45m, see CAUTION_ZONE_AUTHORIZED_M).
+# Ground truth rationale: close but not in the hard danger radius, and
+# it's someone recognized -- shouldn't need a full stop, but shouldn't
+# be ignored either. Expected verdict: CAUTION.
+timestamp: "2026-08-14 10:10:00"
+added:
+  - id: person_203
+    class: person
+    position: [0.2, 0.15, 0.15]
+    dimensions: [0.5, 0.4, 1.7]
+    velocity: [0.05, 0.0, 0.05]
+    static: false
+    visible: true
+    confidence: 0.9
+    last_seen: 1.0
+    zone: caution
+    risk_score: 0.55
+    authorized: true
+    name: "Safwan"
+changed: []
+removed: []

@@ -1,0 +1,22 @@
+# Scenario 1: an AUTHORIZED worker enters the DANGER zone (< 0.15m,
+# see DANGER_ZONE_AUTHORIZED_M in world_model_v2.py).
+# Ground truth rationale: supervisor feedback explicitly states authorized
+# workers still carry non-zero risk at close range -- tighter radius, not
+# zero risk. Expected verdict: STOP.
+timestamp: "2026-08-14 10:00:00"
+added:
+  - id: person_201
+    class: person
+    position: [0.05, 0.05, 0.08]
+    dimensions: [0.5, 0.4, 1.7]
+    velocity: [0.1, 0.0, 0.05]
+    static: false
+    visible: true
+    confidence: 0.91
+    last_seen: 1.0
+    zone: danger
+    risk_score: 0.92
+    authorized: true
+    name: "Aleem"
+changed: []
+removed: []

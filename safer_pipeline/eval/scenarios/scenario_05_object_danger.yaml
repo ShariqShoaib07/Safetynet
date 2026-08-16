@@ -1,0 +1,26 @@
+# Scenario 5: a non-person OBJECT (moving box) enters the DANGER zone.
+# Ground truth rationale (FLAGGED -- confirm with supervisor, not
+# confident): world_model_v2.py's own compute_zone() applies the same
+# DANGER_ZONE_M threshold to non-person objects as to unauthorized
+# people, so by the existing zone logic this IS a danger-zone event.
+# But physically, a stray box is a collision/damage risk, not a human
+# safety risk -- whether that should get the same STOP verdict as an
+# unrecognized person at the same distance is a real open question, not
+# just an implementation detail. Marked STOP for now to match existing
+# zone logic, but this is the scenario most likely worth discussing with
+# your supervisor and possibly revising.
+timestamp: "2026-08-14 10:20:00"
+added:
+  - id: box_9
+    class: box
+    position: [0.25, 0.1, 0.35]
+    dimensions: [0.3, 0.25, 0.2]
+    velocity: [0.8, 0.2, 0.5]
+    static: false
+    visible: true
+    confidence: 0.7
+    last_seen: 1.0
+    zone: danger
+    risk_score: 0.7
+changed: []
+removed: []

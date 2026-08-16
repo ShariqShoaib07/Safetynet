@@ -1,0 +1,21 @@
+# Scenario 2: an UNAUTHORIZED person enters the DANGER zone (< 0.5m,
+# see DANGER_ZONE_M in world_model_v2.py).
+# Ground truth rationale: closest, highest-risk case in the whole set --
+# unrecognized person very close to the arm. Expected verdict: STOP.
+timestamp: "2026-08-14 10:05:00"
+added:
+  - id: person_202
+    class: person
+    position: [0.2, 0.1, 0.3]
+    dimensions: [0.55, 0.42, 1.75]
+    velocity: [0.3, 0.1, 0.4]
+    static: false
+    visible: true
+    confidence: 0.88
+    last_seen: 1.0
+    zone: danger
+    risk_score: 0.95
+    authorized: false
+    name: null
+changed: []
+removed: []

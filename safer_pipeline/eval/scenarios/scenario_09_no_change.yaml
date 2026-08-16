@@ -1,0 +1,11 @@
+# Scenario 9: an empty diff -- added/changed/removed are all empty.
+# In the real system this should never actually be sent (main.py only
+# calls the safety checker when world_diff.yaml's mtime changes, and
+# world_model_v2.py only writes a diff when something triggered), but
+# it's included here as a sanity check on the LLM itself: if it ever
+# does receive a no-op diff, it should recognize there's nothing to act
+# on, not invent a hazard. Expected verdict: SAFE.
+timestamp: "2026-08-14 10:40:00"
+added: []
+changed: []
+removed: []

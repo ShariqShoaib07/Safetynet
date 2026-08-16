@@ -1,0 +1,38 @@
+# models.yaml
+#
+# Every model listed here gets run through every scenario. Add/remove
+# entries to control what shows up in the comparison table -- this is
+# meant to grow into extension #6 (expanded model comparisons) over time,
+# not just serve today's single-model test.
+#
+# api_key_env: name of the environment variable holding that provider's
+# key. Set with e.g. $env:OPENAI_API_KEY = "sk-..." (PowerShell) before
+# running run_eval.py. A model with no key set falls back to
+# llm_client.py's placeholder generator and will show as untested in
+# the results, not crash the run.
+
+- name: "gpt-4o"
+  provider: openai
+  model: "gpt-4o"
+  api_key_env: OPENAI_API_KEY
+
+# Uncomment and fill in as you add more models via OpenRouter:
+# - name: "deepseek-r1"
+#   provider: openrouter
+#   model: "deepseek/deepseek-r1"
+#   api_key_env: OPENROUTER_API_KEY
+#
+# - name: "qwen-2.5-72b"
+#   provider: openrouter
+#   model: "qwen/qwen-2.5-72b-instruct"
+#   api_key_env: OPENROUTER_API_KEY
+#
+# - name: "kimi-k2"
+#   provider: openrouter
+#   model: "moonshotai/kimi-k2"
+#   api_key_env: OPENROUTER_API_KEY
+#
+# - name: "claude"
+#   provider: openrouter
+#   model: "anthropic/claude-sonnet-4.5"
+#   api_key_env: OPENROUTER_API_KEY

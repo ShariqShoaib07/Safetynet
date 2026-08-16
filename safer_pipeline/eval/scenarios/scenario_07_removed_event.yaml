@@ -1,0 +1,19 @@
+# Scenario 7: a person who was previously tracked (and, per the history
+# fed alongside this diff, was in the danger zone) is now REMOVED --
+# i.e. no longer detected at all.
+# Ground truth rationale (FLAGGED -- genuinely ambiguous, worth
+# discussing): world_model_v2.py's "removed" just means the object
+# dropped out of `current` entirely -- this could mean they walked away
+# (safe to relax), OR it could mean the camera briefly lost tracking
+# while they're still standing right there (NOT safe to relax). The diff
+# format alone can't distinguish these. Marked SAFE here as the
+# "optimistic" ground truth, but flagging this as a case where the LLM's
+# actual behavior might reveal whether more info (e.g. a distinct
+# "lost_tracking" state vs a true "left" state) needs to be added to the
+# YAML schema -- exactly the kind of "how do YAML changes affect the
+# safety decision" question from the supervisor's notes.
+timestamp: "2026-08-14 10:30:00"
+added: []
+changed: []
+removed:
+  - person_206

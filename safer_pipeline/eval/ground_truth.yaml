@@ -1,0 +1,57 @@
+# ground_truth.yaml
+#
+# Expected verdict per scenario, for scoring run_eval.py's results.
+#
+# `confidence: high` means the expected verdict follows directly and
+# unambiguously from existing SAFER design decisions/supervisor feedback.
+# `confidence: flagged` means I derived a reasonable expected answer, but
+# it's genuinely an open design question -- see the comment block at the
+# top of that scenario's YAML file for the reasoning. Review these before
+# trusting the accuracy numbers on flagged scenarios; they're included so
+# the LLM's actual behavior can inform the design discussion, not because
+# the "correct" answer is settled.
+
+scenario_01_authorized_danger:
+  expected_verdict: STOP
+  confidence: high
+  rationale: "Authorized worker inside the hard danger radius -- supervisor feedback is explicit that authorized still carries non-zero risk at close range."
+
+scenario_02_unauthorized_danger:
+  expected_verdict: STOP
+  confidence: high
+  rationale: "Unrecognized person inside the danger radius -- the highest-risk case in the set."
+
+scenario_03_authorized_caution:
+  expected_verdict: CAUTION
+  confidence: high
+  rationale: "Authorized worker inside caution range only, not danger range."
+
+scenario_04_unauthorized_caution:
+  expected_verdict: CAUTION
+  confidence: high
+  rationale: "Unrecognized person inside caution range only, not danger range."
+
+scenario_05_object_danger:
+  expected_verdict: STOP
+  confidence: flagged
+  rationale: "Matches existing compute_zone() logic (same threshold applied to non-person objects), but whether a stray object should carry the same verdict weight as an unrecognized person is an open question -- see scenario file comment."
+
+scenario_06_multi_event:
+  expected_verdict: STOP
+  confidence: high
+  rationale: "Worst-case event (unauthorized person in danger) should dominate over the simultaneous lower-risk event."
+
+scenario_07_removed_event:
+  expected_verdict: SAFE
+  confidence: flagged
+  rationale: "Optimistic reading of 'removed' as 'left the area' -- but the diff format can't currently distinguish that from 'tracking lost while still present'. See scenario file comment -- this is the scenario most worth discussing with your supervisor."
+
+scenario_08_boundary:
+  expected_verdict: CAUTION
+  confidence: flagged
+  rationale: "Nominal expected label for a right-at-threshold distance -- the real purpose of this scenario is measuring run-to-run CONSISTENCY, not scoring against this label."
+
+scenario_09_no_change:
+  expected_verdict: SAFE
+  confidence: high
+  rationale: "Empty diff, nothing to react to. Also a sanity check that main.py's mtime-gated trigger is doing its job in the live system -- this diff should never actually reach the LLM in practice."

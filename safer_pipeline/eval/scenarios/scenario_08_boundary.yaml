@@ -1,0 +1,26 @@
+# Scenario 8: an UNAUTHORIZED person sitting almost exactly at the
+# danger/caution boundary (~0.5m, see DANGER_ZONE_M).
+# Ground truth rationale: this is NOT meant to test "correctness" the
+# way the others are -- it's specifically designed to stress-test
+# CONSISTENCY. A borderline case like this is where run-to-run variance
+# is most likely to show up, since it's right at the edge of the
+# distance threshold. Marked CAUTION as the nominal expected verdict,
+# but the real signal from this scenario is whether repeated runs agree
+# with each other, not just whether they match this label.
+timestamp: "2026-08-14 10:35:00"
+added:
+  - id: person_207
+    class: person
+    position: [0.3, 0.3, 0.3]
+    dimensions: [0.5, 0.4, 1.7]
+    velocity: [0.1, 0.05, 0.1]
+    static: false
+    visible: true
+    confidence: 0.8
+    last_seen: 1.0
+    zone: caution
+    risk_score: 0.5
+    authorized: false
+    name: null
+changed: []
+removed: []

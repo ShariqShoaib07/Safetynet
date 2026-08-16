@@ -1,0 +1,21 @@
+# Scenario 4: an UNAUTHORIZED person enters the CAUTION zone only
+# (0.5m - 1.5m, see CAUTION_ZONE_M).
+# Ground truth rationale: unrecognized, but not yet close enough to be an
+# immediate hazard. Expected verdict: CAUTION.
+timestamp: "2026-08-14 10:15:00"
+added:
+  - id: person_204
+    class: person
+    position: [0.5, 0.4, 0.5]
+    dimensions: [0.52, 0.4, 1.72]
+    velocity: [-0.1, 0.05, -0.2]
+    static: false
+    visible: true
+    confidence: 0.85
+    last_seen: 1.0
+    zone: caution
+    risk_score: 0.4
+    authorized: false
+    name: null
+changed: []
+removed: []
